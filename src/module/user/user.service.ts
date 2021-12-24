@@ -1,0 +1,166 @@
+import {Injectable, Logger } from '@nestjs/common';
+import { UserCreateDto, UpdateUserDto } from '../../dto/user';
+import { HttpException } from '@nestjs/common/exceptions/http.exception';
+import { HttpStatus } from '@nestjs/common';
+import { PrismaService } from '../../service/prisma.service';
+import User from '../../service/user/model/user'
+
+const select = {
+  id: true,
+  email: true,
+  username: true,
+  deleted: true,
+  image: true
+};
+
+@Injectable()
+export class UserService {
+
+  private readonly logger = new Logger(UserService.name);
+
+  constructor(private prisma: PrismaService) {
+
+  }
+
+  async findAll(): Promise<User[]> {
+    return await this.prisma.user.findMany() as User[];
+  }
+
+
+  async create(dto: UserCreateDto): Promise<User> {
+    const {username, email, password} = dto;
+
+    // check uniqueness of username/email
+    const userNotUnique = await this.prisma.user.findUnique({
+      where: {email}
+    });
+
+    if (userNotUnique) {
+      const errors = {username: 'Username and email must be unique.'};
+      throw new HttpException({message: 'Input data validation failed', errors}, HttpStatus.BAD_REQUEST);
+    }
+
+    const data = {
+      username,
+      email,
+      password: password,
+      deleted: false,
+    };
+
+    // TODO: make this transactional
+    let user:User = await this.prisma.user.create({ data }) as User;
+    
+    user = await this.findByIdWithChilds(user.id);
+    this.logger.debug(`user created[${user}]`);
+    return user;
+  }
+
+  async update(id: number, data: UpdateUserDto): Promise<User> {
+    const where = { id };
+    const user:User = await this.prisma.user.update(
+      {
+        where, 
+        data
+      }) as User;
+
+    return user;
+  }
+
+  async delete(id: number): Promise<User> {
+    return await this.prisma.user.delete({ where: { id : id } }) as User;
+  }
+
+  async findById(id: number): Promise<User>{
+    const user:User = await this.prisma.user.findUnique(
+      { 
+        where: 
+          { 
+            id : id,  
+          }
+      }
+    ) as User;
+    return user ;
+  }
+
+  async findByIdWithChilds(id: number): Promise<User>{
+    const user:User = await this.prisma.user.findUnique(
+      { 
+        where: 
+          { 
+            id : id 
+          }, 
+          include: {
+            wallets: {
+              include: {
+                accounts:true
+              }
+            }
+          }
+      }
+    ) as User;
+    return  user ;
+  }
+
+  async findByEmail(email: string): Promise<User>{
+    let user:User = await this.prisma.user.findUnique(
+      { 
+        where: 
+          { 
+            email 
+          } 
+      }
+    ) as User;
+    return user ;
+  }
+
+  async findByEmailWithChilds(email: string): Promise<User>{
+    const user:User = await this.prisma.user.findUnique(
+      { 
+        where: 
+          { 
+            email
+          }, 
+          include: {
+            wallets: {
+              include: {
+                accounts:true
+              }
+            }
+          }
+      }
+    ) as User;
+    return user;
+  }
+
+  async findUserByAccountAddressWithChilds(accountAddress: string): Promise<User>{
+    this.logger.debug(`findUserByAccountAddressWithChilds: account address[${accountAddress}]`);
+    const user:User = await this.prisma.user.findFirst(
+      { 
+        where: 
+          { 
+            wallets : 
+            {
+              every : 
+              {
+                accounts : 
+                {
+                  every : 
+                  {
+                    address : accountAddress
+                  }
+                }
+              }
+            }
+          }, 
+          include: {
+            wallets: {
+              include: {
+                accounts:true
+              }
+            }
+          }
+      }
+    ) as User;
+    return user;
+  }
+}
