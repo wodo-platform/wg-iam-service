@@ -65,9 +65,7 @@
 
 ## About
 
-This is a template/boilerplate repository to speed up development process. New nodejs application/repositories can be created bsaed on this template. NestJS and prisma frameworks are enabled. 
-
-> please do not forget to add "@wodo-platform/"  to name of your module in package.json file in order to publish it to the github npm repo.
+This repo contains implementation details about identity and access management for tradational, non-microservice design.
 
 ## Installation
 
